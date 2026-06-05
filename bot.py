@@ -628,7 +628,7 @@ def stream_watcher():
 # AUTO LOOP
 # =========================
 def auto_loop():
-    last_sent = {}
+    index = 0
 
     while True:
         time.sleep(1)
@@ -636,34 +636,20 @@ def auto_loop():
         if not auto_enabled:
             continue
 
-        now = time.time()
+        if not auto_messages:
+            continue
 
-        best_i = None
-        best_overdue = -1
+        msg = auto_messages[index % len(auto_messages)]
+        interval = msg.get("interval", 30 * 60)
 
-        for i, entry in enumerate(auto_messages):
-            msg = entry.get("message", "")
-            interval = entry.get("interval", 30 * 60)
-            if not msg:
-                continue
-            if i not in last_sent:
-                last_sent[i] = now
-                continue
-            overdue = (now - last_sent[i]) - interval
-            if overdue >= 0 and overdue > best_overdue:
-                best_overdue = overdue
-                best_i = i
+        time.sleep(interval)
 
-        if best_i is not None:
-            last_sent[best_i] = now
+        if auto_enabled and auto_messages:
             asyncio.run_coroutine_threadsafe(
-                send_message(auto_messages[best_i]["message"]),
+                send_message(auto_messages[index % len(auto_messages)]["message"]),
                 bot.loop
             )
-
-        for k in list(last_sent.keys()):
-            if k >= len(auto_messages):
-                del last_sent[k]
+            index += 1
 
 
 # =========================
