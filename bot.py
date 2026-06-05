@@ -142,7 +142,7 @@ def get_last_ended_prediction():
             headers=get_headers(),
             params={"broadcaster_id": BROADCASTER_ID, "first": 1, "status": status}
         )
-        if r.status_code == 200:
+        if r.status_code != 200:
             continue
         data = r.json().get("data", [])
         if data:
