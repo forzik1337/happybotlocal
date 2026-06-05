@@ -526,6 +526,7 @@ def home():
     }
 
     loadAutos();
+    setInterval(() => fetch('/get_autos'), 10 * 60 * 1000);
     </script>
     </body>
     </html>
