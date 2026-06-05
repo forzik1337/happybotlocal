@@ -142,7 +142,7 @@ def get_last_ended_prediction():
             headers=get_headers(),
             params={"broadcaster_id": BROADCASTER_ID, "first": 1, "status": status}
         )
-        if r.status_code != 200:
+        if r.status_code = 200:
             continue
         data = r.json().get("data", [])
         if data:
@@ -243,6 +243,10 @@ class Bot(commands.Bot):
     @commands.command()
     async def winline(self, ctx):
         await ctx.send("win1 win2 win3 — 67p ПО ПРОМОКОДУ \"MixaRage\" ПЕРЕХОДИ НА ЛУЧШЕГО БУКМЕЙКЕРА РОССИИ WINLINE — https://t.me/mixarage")
+
+    @commands.command()
+    async def команды(self, ctx):
+        await ctx.send("Все команды находятся тут https://dolchebanana.netlify.app/")
 
     @commands.command()
     async def clospred(self, ctx):
