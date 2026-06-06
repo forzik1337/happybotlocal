@@ -246,7 +246,11 @@ class Bot(commands.Bot):
 
     @commands.command()
     async def команды(self, ctx):
-        await ctx.send("Все команды находятся тут https://dolchebanana.netlify.app/")
+        await ctx.send("Все команды находятся тут https://dolchebanana.netlify.app")
+
+    @commands.command()
+    async def лягушки(self, ctx):
+        await ctx.send("OSFrog OSFrog OSFrog OSFrog OSFrog OSFrog OSFrog OSFrog")
 
     @commands.command()
     async def clospred(self, ctx):
