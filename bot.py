@@ -253,6 +253,10 @@ class Bot(commands.Bot):
         await ctx.send("OSFrog OSFrog OSFrog OSFrog OSFrog OSFrog OSFrog OSFrog")
 
     @commands.command()
+    async def Леха(self, ctx):
+        await ctx.send("НИКОГДА НЕ ЗАХОДИ НА ЭТУ ФОТКУ https://i.imgur.com/y2Gnjnz.jpeg")
+
+    @commands.command()
     async def clospred(self, ctx):
         if not (ctx.author.is_mod or ctx.author.is_broadcaster):
             return
