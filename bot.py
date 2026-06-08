@@ -22,7 +22,7 @@ GAME_ALIASES = {
 # НАСТРОЙКИ
 # =========================
 TOKEN = os.environ.get("TOKEN")
-CHANNEL = "mixarage"
+CHANNEL = "forzikxd"
 CLIENT_ID = os.environ.get("CLIENT_ID")
 ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN")
 BROADCASTER_ID = os.environ.get("BROADCASTER_ID")
