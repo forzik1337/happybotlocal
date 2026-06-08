@@ -1,11 +1,13 @@
 from twitchio.ext import commands
 from flask import Flask, request, jsonify, session, redirect
+from functools import wraps
 import requests
 import asyncio
 import threading
 import time
 import json
 import os
+import re
 
 # =========================
 # АЛИАСЫ
@@ -31,10 +33,9 @@ PANEL_PASSWORD = os.environ.get("PANEL_PASSWORD", "admin")
 SETTINGS_FILE = "settings.json"
 
 # =========================
-# DEFAULT VALUES
+# СОСТОЯНИЕ
 # =========================
 auto_enabled = True
-
 auto_messages = [
     {
         "message": "LO LOL ChickenGunGuitar <--- НЕ ВИДИШЬ СМАЙЛИКИ? ТОГДА ПРОСТО СКАЧАЙ НА ПК РАСШИРЕНИЕ 7tv - 7tv.app ИЛИ НА ТЕЛЕФОН ПРИЛОЖЕНИЕ frosty",
@@ -45,6 +46,8 @@ auto_messages = [
         "interval": 60 * 60
     }
 ]
+saved_predictions = {}
+last_prediction = None
 
 
 # =========================
@@ -53,14 +56,15 @@ auto_messages = [
 def save_settings():
     data = {
         "auto_enabled": auto_enabled,
-        "auto_messages": auto_messages
+        "auto_messages": auto_messages,
+        "saved_predictions": saved_predictions
     }
     with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 
 def load_settings():
-    global auto_enabled, auto_messages
+    global auto_enabled, auto_messages, saved_predictions
 
     if not os.path.exists(SETTINGS_FILE):
         return
@@ -69,6 +73,7 @@ def load_settings():
         data = json.load(f)
 
     auto_enabled = data.get("auto_enabled", auto_enabled)
+    saved_predictions = data.get("saved_predictions", {})
 
     if "auto_messages" in data:
         auto_messages = data["auto_messages"]
@@ -88,12 +93,10 @@ def load_settings():
 
 load_settings()
 
-# =========================
-# ПОСЛЕДНЯЯ СТАВКА
-# =========================
-last_prediction = None
 
-
+# =========================
+# TWITCH API HELPERS
+# =========================
 def get_headers():
     return {
         "Client-ID": CLIENT_ID,
@@ -155,6 +158,17 @@ def get_last_ended_prediction():
     return None
 
 
+def is_stream_live():
+    r = requests.get(
+        "https://api.twitch.tv/helix/streams",
+        headers=get_headers(),
+        params={"user_id": BROADCASTER_ID}
+    )
+    if r.status_code != 200:
+        return False
+    return len(r.json().get("data", [])) > 0
+
+
 # =========================
 # TWITCH BOT
 # =========================
@@ -170,17 +184,39 @@ class Bot(commands.Bot):
     async def event_ready(self):
         print("Бот запущен:", self.nick)
 
+    # БАГ #1 ИСПРАВЛЕН: event_message теперь внутри класса
+    async def event_message(self, message):
+        if message.echo:
+            return
+
+        await self.handle_commands(message)
+
+        if not message.content.startswith("!"):
+            return
+
+        # Берём только первое слово после "!" как имя команды
+        command_name = message.content[1:].split()[0].lower()
+
+        if command_name not in saved_predictions:
+            return
+
+        if not (message.author.is_mod or message.author.is_broadcaster):
+            return
+
+        pred = saved_predictions[command_name]
+        ok, result = create_prediction(pred["title"], pred["outcomes"], pred["duration"])
+
+        if ok:
+            await message.channel.send(f'⭐ Ставка "{command_name}" запущена!')
+        else:
+            await message.channel.send(f"❌ Ошибка: {result}")
+
     @commands.command()
     async def title(self, ctx, *, new_title):
         if not (ctx.author.is_mod or ctx.author.is_broadcaster):
             return
-        headers = {
-            "Client-ID": CLIENT_ID,
-            "Authorization": f"Bearer {ACCESS_TOKEN}",
-            "Content-Type": "application/json"
-        }
         url = f"https://api.twitch.tv/helix/channels?broadcaster_id={BROADCASTER_ID}"
-        r = requests.patch(url, headers=headers, json={"title": new_title})
+        r = requests.patch(url, headers=get_headers(), json={"title": new_title})
         if r.status_code == 204:
             await ctx.send(f"📝 Название стрима изменено: {new_title}")
         else:
@@ -191,13 +227,9 @@ class Bot(commands.Bot):
         if not (ctx.author.is_mod or ctx.author.is_broadcaster):
             return
         query = GAME_ALIASES.get(game_name.lower(), game_name)
-        headers = {
-            "Client-ID": CLIENT_ID,
-            "Authorization": f"Bearer {ACCESS_TOKEN}"
-        }
         r = requests.get(
             "https://api.twitch.tv/helix/games",
-            headers=headers,
+            headers=get_headers(),
             params={"name": query}
         )
         if r.status_code != 200:
@@ -208,15 +240,13 @@ class Bot(commands.Bot):
             await ctx.send("❌ Игра не найдена")
             return
         game = data[0]
-        game_id = game["id"]
-        real_name = game["name"]
         r2 = requests.patch(
             f"https://api.twitch.tv/helix/channels?broadcaster_id={BROADCASTER_ID}",
-            headers=headers,
-            json={"game_id": game_id}
+            headers=get_headers(),
+            json={"game_id": game["id"]}
         )
         if r2.status_code == 204:
-            await ctx.send(f"🎮 Категория была изменена: {real_name}")
+            await ctx.send(f"🎮 Категория была изменена: {game['name']}")
         else:
             await ctx.send("❌ Ошибка смены игры")
 
@@ -238,11 +268,11 @@ class Bot(commands.Bot):
 
     @commands.command()
     async def win(self, ctx):
-        await ctx.send("win1 win2 win3 — 67p ПО ПРОМОКОДУ \"MixaRage\" ПЕРЕХОДИ НА ЛУЧШЕГО БУКМЕЙКЕРА РОССИИ WINLINE — https://t.me/mixarage")
+        await ctx.send('win1 win2 win3 — 67p ПО ПРОМОКОДУ "MixaRage" ПЕРЕХОДИ НА ЛУЧШЕГО БУКМЕЙКЕРА РОССИИ WINLINE — https://t.me/mixarage')
 
     @commands.command()
     async def winline(self, ctx):
-        await ctx.send("win1 win2 win3 — 67p ПО ПРОМОКОДУ \"MixaRage\" ПЕРЕХОДИ НА ЛУЧШЕГО БУКМЕЙКЕРА РОССИИ WINLINE — https://t.me/mixarage")
+        await ctx.send('win1 win2 win3 — 67p ПО ПРОМОКОДУ "MixaRage" ПЕРЕХОДИ НА ЛУЧШЕГО БУКМЕЙКЕРА РОССИИ WINLINE — https://t.me/mixarage')
 
     @commands.command()
     async def команды(self, ctx):
@@ -299,11 +329,7 @@ class Bot(commands.Bot):
         pred_data = data[0]
         pred_id = pred_data["id"]
         outcomes = pred_data["outcomes"]
-        winning = None
-        for o in outcomes:
-            if outcome_title.lower() in o["title"].lower():
-                winning = o
-                break
+        winning = next((o for o in outcomes if outcome_title.lower() in o["title"].lower()), None)
         if not winning:
             names = " / ".join(o["title"] for o in outcomes)
             await ctx.send(f"❌ Вариант не найден. Доступные: {names}")
@@ -358,12 +384,62 @@ class Bot(commands.Bot):
         else:
             await ctx.send(f"❌ Ошибка создания ставки: {result}")
 
+    @commands.command(name="newpred")
+    async def pred_plus(self, ctx):
+        if not (ctx.author.is_mod or ctx.author.is_broadcaster):
+            return
+
+        args = ctx.message.content[len("!newpred "):]
+
+        match = re.match(r'"([^"]+)"\s+(\d+)([smh])\s+"([^"]+)"\s+(.+)', args)
+        if not match:
+            await ctx.send('❌ Формат: !newpred "название" 5m "вопрос" Да/Нет')
+            return
+
+        name = match.group(1).lower()
+        value = int(match.group(2))
+        unit = match.group(3)
+        title = match.group(4)
+        outcomes = [x.strip() for x in match.group(5).split("/") if x.strip()]
+
+        if len(outcomes) < 2:
+            await ctx.send("❌ Нужно минимум 2 варианта")
+            return
+
+        duration = value
+        if unit == "m":
+            duration *= 60
+        elif unit == "h":
+            duration *= 3600
+
+        saved_predictions[name] = {
+            "title": title,
+            "outcomes": outcomes,
+            "duration": duration
+        }
+
+        await ctx.send(
+            f'⭐ Быстрая ставка "{name}" сохранена: '
+            f'[{value}{unit}] "{title}" • {" / ".join(outcomes)}'
+        )
+        save_settings()
+
 
 # =========================
 # FLASK
 # =========================
 app = Flask(__name__)
-app.secret_key = os.environ.get("PANEL_PASSWORD", "supersecret123")
+app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
+
+
+# БАГ #3 ИСПРАВЛЕН: декоратор авторизации для всех маршрутов
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("auth"):
+            return redirect("/login")
+        return f(*args, **kwargs)
+    return decorated
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -383,10 +459,15 @@ def login():
     """
 
 
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
+
+
 @app.route("/")
+@login_required
 def home():
-    if not session.get("auth"):
-        return redirect("/login")
     return """
     <html>
     <head>
@@ -538,7 +619,7 @@ def home():
     }
 
     loadAutos();
-    setInterval(() => fetch('/get_autos'), 10 * 60 * 1000);
+    setInterval(loadAutos, 10 * 60 * 1000);
     </script>
     </body>
     </html>
@@ -546,9 +627,10 @@ def home():
 
 
 # =========================
-# КНОПКИ
+# КНОПКИ — теперь защищены авторизацией
 # =========================
 @app.route("/send/<action>")
+@login_required
 def send(action):
     if action == "tg":
         msg = auto_messages[1]["message"] if len(auto_messages) > 1 else "https://t.me/mixarage"
@@ -567,15 +649,17 @@ def send(action):
     elif action == "donate":
         msg = "DONALERT ЗАДОНАТИТЬ ТИПОЧКУ - https://www.donationalerts.com/r/mopsyara009"
     else:
-        msg = "..."
+        return "Unknown action", 400
+
     asyncio.run_coroutine_threadsafe(send_message(msg), bot.loop)
     return "OK"
 
 
 # =========================
-# API ROUTES ДЛЯ АВТО
+# API ROUTES — защищены авторизацией
 # =========================
 @app.route("/get_autos")
+@login_required
 def get_autos():
     return jsonify({
         "auto_enabled": auto_enabled,
@@ -584,6 +668,7 @@ def get_autos():
 
 
 @app.route("/save_autos", methods=["POST"])
+@login_required
 def save_autos_route():
     global auto_messages
     data = request.get_json()
@@ -593,6 +678,7 @@ def save_autos_route():
 
 
 @app.route("/toggle_auto")
+@login_required
 def toggle_auto():
     global auto_enabled
     auto_enabled = not auto_enabled
@@ -601,19 +687,36 @@ def toggle_auto():
 
 
 # =========================
-# ПРОВЕРКА СТРИМА
+# AUTO LOOP — БАГ #2 ИСПРАВЛЕН
 # =========================
-def is_stream_live():
-    r = requests.get(
-        "https://api.twitch.tv/helix/streams",
-        headers=get_headers(),
-        params={"user_id": BROADCASTER_ID}
-    )
-    if r.status_code != 200:
-        return False
-    return len(r.json().get("data", [])) > 0
+def auto_loop():
+    # Каждое сообщение имеет свой таймер, независимо от других
+    timers = {}
+
+    while True:
+        time.sleep(5)
+
+        if not auto_enabled or not auto_messages:
+            continue
+
+        now = time.time()
+        for i, msg in enumerate(auto_messages):
+            interval = msg.get("interval", 30 * 60)
+            if now >= timers.get(i, now):  # при старте сразу не шлём — ждём первый интервал
+                asyncio.run_coroutine_threadsafe(
+                    send_message(msg["message"]), bot.loop
+                )
+                timers[i] = now + interval
+
+        # Чистим таймеры для удалённых сообщений
+        for i in list(timers.keys()):
+            if i >= len(auto_messages):
+                del timers[i]
 
 
+# =========================
+# STREAM WATCHER
+# =========================
 def stream_watcher():
     global auto_enabled
     was_live = False
@@ -630,34 +733,6 @@ def stream_watcher():
             save_settings()
             print("[stream] Стрим закончился — авто выключены")
         was_live = live
-
-
-# =========================
-# AUTO LOOP
-# =========================
-def auto_loop():
-    index = 0
-
-    while True:
-        time.sleep(1)
-
-        if not auto_enabled:
-            continue
-
-        if not auto_messages:
-            continue
-
-        msg = auto_messages[index % len(auto_messages)]
-        interval = msg.get("interval", 30 * 60)
-
-        time.sleep(interval)
-
-        if auto_enabled and auto_messages:
-            asyncio.run_coroutine_threadsafe(
-                send_message(auto_messages[index % len(auto_messages)]["message"]),
-                bot.loop
-            )
-            index += 1
 
 
 # =========================
