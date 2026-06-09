@@ -252,7 +252,7 @@ class Bot(commands.Bot):
 
     @commands.command()
     async def tg(self, ctx):
-        await ctx.send("📢 Новости о стримах тут https://t.me/mixarage")
+        await ctx.send("ТГ Новости о стримах тут https://t.me/mixarage")
 
     @commands.command()
     async def tt(self, ctx):
@@ -264,7 +264,7 @@ class Bot(commands.Bot):
 
     @commands.command()
     async def алабуга(self, ctx):
-        await ctx.send("📢 Новости о стримах тут https://t.me/mixarage")
+        await ctx.send("ТГ Новости о стримах тут https://t.me/mixarage")
 
     @commands.command()
     async def win(self, ctx):
@@ -277,6 +277,10 @@ class Bot(commands.Bot):
     @commands.command()
     async def команды(self, ctx):
         await ctx.send("Все команды находятся тут https://dolchebanana.netlify.app")
+
+    @commands.command()
+    async def марафон(self, ctx):
+        await ctx.send("ТГ Всё о марафоне https://t.me/mixarage/858")
 
     @commands.command()
     async def лягушки(self, ctx):
