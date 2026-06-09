@@ -706,7 +706,7 @@ def auto_loop():
         now = time.time()
         for i, msg in enumerate(auto_messages):
             interval = msg.get("interval", 30 * 60)
-            if now >= timers.get(i, now):  # при старте сразу не шлём — ждём первый интервал
+            if now >= timers.get(i, now + interval):
                 asyncio.run_coroutine_threadsafe(
                     send_message(msg["message"]), bot.loop
                 )
