@@ -694,8 +694,9 @@ def toggle_auto():
 # AUTO LOOP — БАГ #2 ИСПРАВЛЕН
 # =========================
 def auto_loop():
-    # Каждое сообщение имеет свой таймер, независимо от других
     timers = {}
+    # Ждём пока бот полностью запустится
+    time.sleep(15)
 
     while True:
         time.sleep(5)
@@ -703,16 +704,24 @@ def auto_loop():
         if not auto_enabled or not auto_messages:
             continue
 
-        now = time.time()
-        for i, msg in enumerate(auto_messages):
-            interval = msg.get("interval", 30 * 60)
-            if now >= timers.get(i, now + interval):
-                asyncio.run_coroutine_threadsafe(
-                    send_message(msg["message"]), bot.loop
-                )
-                timers[i] = now + interval
+        # Проверяем что loop бота живой
+        loop = getattr(bot, '_connection', None)
+        bot_loop = bot.loop if hasattr(bot, 'loop') and bot.loop and not bot.loop.is_closed() else None
+        if not bot_loop:
+            print("[auto] bot.loop недоступен, пропускаем")
+            continue
 
-        # Чистим таймеры для удалённых сообщений
+        now = time.time()
+        for i, msg_data in enumerate(list(auto_messages)):
+            interval = msg_data.get("interval", 30 * 60)
+            last_sent = timers.get(i, 0)  # <-- 0 вместо now+interval, чтобы первое сообщение пришло через interval от старта
+            if now - last_sent >= interval:
+                print(f"[auto] Отправляю сообщение #{i}: {msg_data['message'][:40]}")
+                asyncio.run_coroutine_threadsafe(
+                    send_message(msg_data["message"]), bot_loop
+                )
+                timers[i] = now
+
         for i in list(timers.keys()):
             if i >= len(auto_messages):
                 del timers[i]
