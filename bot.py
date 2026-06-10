@@ -693,11 +693,17 @@ def toggle_auto():
 # =========================
 # AUTO LOOP — БАГ #2 ИСПРАВЛЕН
 # =========================
+_auto_loop_running = False
+
 def auto_loop():
+    global _auto_loop_running
+    if _auto_loop_running:
+        print("[auto] Уже запущен, выходим")
+        return
+    _auto_loop_running = True
+
     time.sleep(15)
-    
-    # Инициализируем таймеры текущим временем — первое сообщение придёт через interval
-    timers = {i: time.time() for i in range(len(auto_messages))}
+    timers = {}
 
     while True:
         time.sleep(5)
@@ -713,8 +719,11 @@ def auto_loop():
         now = time.time()
         for i, msg_data in enumerate(list(auto_messages)):
             interval = msg_data.get("interval", 30 * 60)
-            last_sent = timers.get(i, now)  # новые сообщения тоже стартуют с now
-            if now - last_sent >= interval:
+            # Если таймер для этого индекса не существует — ставим now (подождёт полный interval)
+            if i not in timers:
+                timers[i] = now
+                continue  # ← не отправляем сразу, ждём interval
+            if now - timers[i] >= interval:
                 print(f"[auto] Отправляю сообщение #{i}: {msg_data['message'][:40]}")
                 asyncio.run_coroutine_threadsafe(
                     send_message(msg_data["message"]), bot_loop
