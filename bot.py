@@ -703,36 +703,33 @@ def auto_loop():
     _auto_loop_running = True
 
     time.sleep(15)
-    timers = {}
+    index = 0  # текущее сообщение
 
     while True:
-        time.sleep(5)
-
         if not auto_enabled or not auto_messages:
+            time.sleep(5)
             continue
 
         bot_loop = bot.loop if hasattr(bot, 'loop') and bot.loop and not bot.loop.is_closed() else None
         if not bot_loop:
             print("[auto] bot.loop недоступен, пропускаем")
+            time.sleep(5)
             continue
 
-        now = time.time()
-        for i, msg_data in enumerate(list(auto_messages)):
-            interval = msg_data.get("interval", 30 * 60)
-            # Если таймер для этого индекса не существует — ставим now (подождёт полный interval)
-            if i not in timers:
-                timers[i] = now
-                continue  # ← не отправляем сразу, ждём interval
-            if now - timers[i] >= interval:
-                print(f"[auto] Отправляю сообщение #{i}: {msg_data['message'][:40]}")
-                asyncio.run_coroutine_threadsafe(
-                    send_message(msg_data["message"]), bot_loop
-                )
-                timers[i] = now
+        msg_data = auto_messages[index % len(auto_messages)]
+        interval = msg_data.get("interval", 30 * 60)
 
-        for i in list(timers.keys()):
-            if i >= len(auto_messages):
-                del timers[i]
+        time.sleep(interval)  # ждём интервал ЭТОГО сообщения
+
+        if not auto_enabled or not auto_messages:
+            continue
+
+        print(f"[auto] Отправляю сообщение #{index % len(auto_messages)}: {msg_data['message'][:40]}")
+        asyncio.run_coroutine_threadsafe(
+            send_message(msg_data["message"]), bot_loop
+        )
+
+        index += 1
 
 
 # =========================
