@@ -17,7 +17,8 @@ GAME_ALIASES = {
     "cs2": "Counter-Strike",
     "csgo": "Counter-Strike",
     "counter strike": "Counter-Strike",
-    "jc": "just chatting"
+    "jc": "just chatting";
+    "sleep": "I'm Only Sleeping"
 }
 
 # =========================
