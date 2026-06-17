@@ -280,16 +280,16 @@ class Bot(commands.Bot):
         await ctx.send("Все команды находятся тут https://dolchebanana.netlify.app")
 
     @commands.command()
-    async def марафон(self, ctx):
-        await ctx.send("ТГ Всё о марафоне https://t.me/mixarage/858")
-
-    @commands.command()
     async def лягушки(self, ctx):
         await ctx.send("OSFrog OSFrog OSFrog OSFrog OSFrog OSFrog OSFrog OSFrog")
 
     @commands.command()
     async def Леха(self, ctx):
         await ctx.send("НИКОГДА НЕ ЗАХОДИ НА ЭТУ ФОТКУ https://i.imgur.com/y2Gnjnz.jpeg")
+
+    @commands.command()
+    async def закреп(self, ctx):
+        await ctx.send("ТГ Телеграмм - https://t.me/mixarage | ТГ Телеграмм blay - https://t.me/blay_avards | ДС Дискорд где никто не сидит - https://discord.gg/h7HuGERk2e")
 
     @commands.command()
     async def clospred(self, ctx):
